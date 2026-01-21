@@ -29,4 +29,8 @@ def clean_transactions(df: pd.DataFrame) -> pd.DataFrame:
         cleaned.loc[valid_purchase, "Quantity"]
         * cleaned.loc[valid_purchase, "UnitPrice"]
     )
+    # Ensure object-typed columns are string-backed to avoid parquet write errors
+    obj_cols = cleaned.select_dtypes(include=["object"]).columns.tolist()
+    for c in obj_cols:
+        cleaned[c] = cleaned[c].astype("string")
     return cleaned

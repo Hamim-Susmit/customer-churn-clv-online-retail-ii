@@ -64,31 +64,75 @@ Understanding which customers are at risk of churn **and** which customers are l
 - Deterministic seed (`RANDOM_STATE = 42`)
 - Dependencies in `requirements.txt`
 
-## Quickstart
+## Setup
+Install dependencies in a virtual environment:
+
 ```bash
+# Create and activate virtual environment
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-## Run the notebooks
+## Run the full pipeline
+
+### Option 1: Run all notebooks in sequence (Interactive)
 ```bash
+source .venv/bin/activate  # or activate.bat on Windows
 jupyter notebook
 ```
-Run notebooks in order:
-1. `01_data_audit.ipynb`
-2. `02_cleaning_feature_engineering.ipynb`
-3. `03_modeling_churn.ipynb`
-4. `04_value_proxy_and_actions.ipynb`
+Then open and run each notebook in order:
+1. `01_data_audit.ipynb` — Load raw Excel data, profile columns, check for missing values and anomalies
+2. `02_cleaning_feature_engineering.ipynb` — Clean transactions (remove invalid rows), build customer-level features (RFM, diversity, behavior metrics)
+3. `03_modeling_churn.ipynb` — Train churn prediction models (Logistic Regression vs HistGradientBoosting), evaluate performance
+4. `04_value_proxy_and_actions.ipynb` — Train value regression model, generate churn + value scores, create action list
 
-## Makefile commands
+### Option 2: Run the final step only (Script)
+If earlier notebooks have already generated `data/processed/transactions_clean.parquet` and `data/processed/customer_features.parquet`:
+
 ```bash
-make setup
-make notebook
+cd "/home/dhaka/Main Project/customer-churn-clv-online-retail-ii"
+source .venv/bin/activate
+PYTHONPATH=. python scripts/run_04.py
 ```
 
+This trains churn and value models and writes the action list to `reports/customer_action_list.csv`.
+
+## What we're finding
+
+**Churn Risk Prediction:**
+- Identifies customers likely to become inactive (no purchases for 90 days post-cutoff).
+- Uses features: recency (days since last purchase), frequency (invoice count), monetary value, purchase diversity, return rates, etc.
+- Model: HistGradientBoostingClassifier trained on historical purchase patterns.
+- Output: `churn_probability` (0–1 score, higher = more likely to churn).
+
+**Value Proxy (Future Revenue):**
+- Estimates how much revenue each customer will generate in the next 90 days.
+- Uses the same customer features to predict future purchase behavior.
+- Model: Ridge regression.
+- Output: `value_score` (predicted future revenue); `future_revenue_90d` (actual 90-day revenue sum from holdout period, if labeled).
+
+**Action List:**
+Segments customers by risk and value and recommends actions:
+- **High risk + High value:** Retention incentive + personal outreach (expensive, targeted)
+- **High risk + Low value:** Low-cost reactivation email (test if campaigns can recover them)
+- **Low risk + High value:** Loyalty/upsell offer (maximize share-of-wallet)
+- **Low risk + Low value:** Nurture / standard campaigns (maintain baseline engagement)
+
 ## Outputs
-- `data/processed/transactions_clean.parquet`
-- `data/processed/customer_features.parquet`
-- `reports/figures/*.png`
-- `reports/customer_action_list.csv`
+
+After running the pipeline, you will have:
+
+- **`data/processed/transactions_clean.parquet`** — Cleaned transaction-level data with flags for cancellations, returns, and line revenue.
+- **`data/processed/customer_features.parquet`** — Customer-level aggregated features (RFM, behavioral, diversity metrics, snapshot date).
+- **`reports/customer_action_list.csv`** — Final output with columns:
+  - `CustomerID`
+  - `churn_probability` — Risk of churn (0–1)
+  - `value_score` — Predicted future value
+  - `future_revenue_90d` — Actual future revenue (from holdout period)
+  - `segment` — One of {High risk + High value, High risk + Low value, Low risk + High value, Low risk + Low value}
+  - `recommended_action` — Business action to take
+
+Use this CSV to prioritize retention budgets and design targeted outreach campaigns.

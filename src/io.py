@@ -39,6 +39,34 @@ def load_transactions_excel(path: str | None = None) -> pd.DataFrame:
 
     combined = combined.rename(columns=str.strip)
     combined = combined.rename(columns={"Customer ID": "CustomerID"})
+
+    # Map common alternate column names to the STANDARD_COLUMNS
+    col_candidates = {c: c for c in combined.columns}
+    alt_map = {
+        "InvoiceNo": ["InvoiceNo", "Invoice No", "Invoice"],
+        "StockCode": ["StockCode", "Stock Code"],
+        "Description": ["Description", "ProductDescription"],
+        "Quantity": ["Quantity", "Qty"],
+        "InvoiceDate": ["InvoiceDate", "Invoice Date", "Date"],
+        "UnitPrice": ["UnitPrice", "Unit Price", "Price"],
+        "CustomerID": ["CustomerID", "Customer ID", "Customer Id"],
+        "Country": ["Country", "country"],
+    }
+
+    rename_map = {}
+    for target, options in alt_map.items():
+        for opt in options:
+            if opt in combined.columns:
+                rename_map[opt] = target
+                break
+
+    if rename_map:
+        combined = combined.rename(columns=rename_map)
+
+    missing = [c for c in STANDARD_COLUMNS if c not in combined.columns]
+    if missing:
+        raise KeyError(f"Required columns not found in Excel sheets: {missing}. Available columns: {list(combined.columns)}")
+
     combined = combined[STANDARD_COLUMNS + ["source_sheet"]]
     combined["InvoiceDate"] = pd.to_datetime(combined["InvoiceDate"], errors="coerce")
     return combined
@@ -70,5 +98,11 @@ def audit_transactions(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
 def save_raw_parquet(df: pd.DataFrame) -> str:
     """Save the consolidated raw dataset to parquet."""
     path = config.PROCESSED_DIR / "transactions_raw.parquet"
+    # Ensure object-typed columns are converted to string to avoid pyarrow
+    # attempting to coerce mixed-type columns to numeric types.
+    df = df.copy()
+    obj_cols = df.select_dtypes(include=["object"]).columns.tolist()
+    for c in obj_cols:
+        df[c] = df[c].astype("string")
     df.to_parquet(path, index=False)
     return str(path)
