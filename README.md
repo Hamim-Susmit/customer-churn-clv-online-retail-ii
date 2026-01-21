@@ -62,7 +62,7 @@ Understanding which customers are at risk of churn **and** which customers are l
 ## Reproducibility
 - Python 3.11+
 - Deterministic seed (`RANDOM_STATE = 42`)
-- Dependencies in `requirements.txt`
+- Dependencies in `requirements.txt` or `pyproject.toml`
 
 ## Setup
 Install dependencies in a virtual environment:
@@ -72,8 +72,9 @@ Install dependencies in a virtual environment:
 python -m venv .venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Install dependencies
+# Install dependencies and project in editable mode
 pip install -r requirements.txt
+pip install -e .
 ```
 
 ## Run the full pipeline
@@ -95,12 +96,21 @@ If earlier notebooks have already generated `data/processed/transactions_clean.p
 ```bash
 cd "/home/dhaka/Main Project/customer-churn-clv-online-retail-ii"
 source .venv/bin/activate
-PYTHONPATH=. python scripts/run_04.py
+python scripts/run_04.py
 ```
 
-This trains churn and value models and writes the action list to `reports/customer_action_list.csv`.
+This trains churn and value models with proper train/validation split and writes the action list to `reports/customer_action_list.csv`.
+
+The script will output:
+- **Churn model validation AUC** — Evaluated on holdout customers
+- **Value model validation RMSE** — Evaluated on holdout customers
 
 ## What we're finding
+
+**Data Quality & Leakage Prevention (Fixed):**
+- **Time-based leakage eliminated:** Features are now computed only from transactions up to a snapshot date, preventing future behavior from leaking into training labels.
+- **Train/validation split implemented:** Models are trained on earlier customer cohorts and evaluated on later ones to assess true generalization.
+- **Unused variables cleaned:** Removed redundant `col_candidates` variable in data ingestion.
 
 **Churn Risk Prediction:**
 - Identifies customers likely to become inactive (no purchases for 90 days post-cutoff).

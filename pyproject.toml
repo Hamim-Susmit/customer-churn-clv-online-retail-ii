@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "customer-churn-clv"
+version = "0.1.0"
+description = "Customer churn and CLV analysis for Online Retail II"
+requires-python = ">=3.8"
+dependencies = [
+    "pandas>=1.3.0",
+    "numpy>=1.21.0",
+    "scikit-learn>=0.24.0",
+    "openpyxl>=3.0.0",
+]
+
+[tool.setuptools]
+packages = ["src"]

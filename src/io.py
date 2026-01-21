@@ -41,7 +41,6 @@ def load_transactions_excel(path: str | None = None) -> pd.DataFrame:
     combined = combined.rename(columns={"Customer ID": "CustomerID"})
 
     # Map common alternate column names to the STANDARD_COLUMNS
-    col_candidates = {c: c for c in combined.columns}
     alt_map = {
         "InvoiceNo": ["InvoiceNo", "Invoice No", "Invoice"],
         "StockCode": ["StockCode", "Stock Code"],

@@ -18,10 +18,25 @@ def _invoice_totals(purchases: pd.DataFrame) -> pd.DataFrame:
     return invoice_totals
 
 
-def build_customer_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Create customer-level features from cleaned transactions."""
-    snapshot_date = df["InvoiceDate"].max()
-    purchases = df[(~df["is_cancellation"]) & (~df["is_return_line"])].copy()
+def build_customer_features(df: pd.DataFrame, snapshot_date: pd.Timestamp | None = None) -> pd.DataFrame:
+    """Create customer-level features from cleaned transactions.
+    
+    Args:
+        df: Cleaned transactions DataFrame.
+        snapshot_date: Cutoff date for feature aggregation. If None, uses max InvoiceDate.
+                      Features are computed from transactions with InvoiceDate <= snapshot_date.
+    
+    Returns:
+        Customer-level feature DataFrame with snapshot_date column.
+    """
+    if snapshot_date is None:
+        snapshot_date = df["InvoiceDate"].max()
+    else:
+        snapshot_date = pd.to_datetime(snapshot_date)
+    
+    # Filter to transactions on or before snapshot_date to prevent leakage
+    df_filtered = df[df["InvoiceDate"] <= snapshot_date].copy()
+    purchases = df_filtered[(~df_filtered["is_cancellation"]) & (~df_filtered["is_return_line"])].copy()
 
     first_last = purchases.groupby("CustomerID")["InvoiceDate"].agg(
         first_purchase_date="min", last_purchase_date="max"
@@ -55,12 +70,12 @@ def build_customer_features(df: pd.DataFrame) -> pd.DataFrame:
         .agg(lambda x: x.mode().iat[0] if not x.mode().empty else np.nan)
     )
 
-    total_lines = df.groupby("CustomerID").size()
-    return_lines = df[df["is_return_line"]].groupby("CustomerID").size()
+    total_lines = df_filtered.groupby("CustomerID").size()
+    return_lines = df_filtered[df_filtered["is_return_line"]].groupby("CustomerID").size()
     cancellation_invoices = (
-        df[df["is_cancellation"]].groupby("CustomerID")["InvoiceNo"].nunique()
+        df_filtered[df_filtered["is_cancellation"]].groupby("CustomerID")["InvoiceNo"].nunique()
     )
-    total_invoices = df.groupby("CustomerID")["InvoiceNo"].nunique()
+    total_invoices = df_filtered.groupby("CustomerID")["InvoiceNo"].nunique()
 
     first_last["return_line_rate"] = (return_lines / total_lines).fillna(0)
     first_last["cancellation_invoice_rate"] = (cancellation_invoices / total_invoices).fillna(0)
